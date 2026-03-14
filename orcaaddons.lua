@@ -1,33 +1,29 @@
 --[[
 ╔══════════════════════════════════════════════════════════════╗
-║  orca-addon-functions.lua                                    ║
+║  orca-addon-merged.lua  (orcaaddons.lua — FINAL)            ║
+║  Repo: VenezzaX/OrcaFixes  →  orcaaddons.lua               ║
 ║                                                              ║
-║  PURPOSE: Injects the Addons tab + worker jobs into Orca.   ║
-║  Depends on orca-addon-fixes.lua being loaded first.        ║
+║  LOAD ORDER:                                                 ║
+║    loadstring(game:HttpGet("ORCAADDONS_RAW_URL"))()         ║
 ║    loadstring(game:HttpGet("https://raw.githubusercontent   ║
 ║      .com/richie0866/orca/master/public/latest.lua"))()     ║
-║                                                             ║
-║  ADDONS INCLUDED:                                           ║
-║  Character  — NoClip, InfiniteJump, ClickTeleport, SpinBot ║
-║  Combat     — KillAura, SilentAim, ReachExtend             ║
-║  Visual     — ESP Names, Fullbright                        ║
-║  Misc       — Anti-AFK                                     ║
+║                                                              ║
+║  NOTE: orcafixes.lua is NO LONGER needed as a separate      ║
+║  file. All helpers are inlined here to avoid the            ║
+║  _G sandbox isolation issue between loadstring chunks.      ║
 ╚══════════════════════════════════════════════════════════════╝
 --]]
 
--- ────────────────────────────────────────────────────────────
--- Dependency check
--- ────────────────────────────────────────────────────────────
-local helpers = _G.__OrcaAddonHelpers
-if not helpers then
-    error("[OrcaAddons] orca-addon-fixes.lua must be loaded BEFORE this file!")
+-- ════════════════════════════════════════════════════════════
+-- Guard: prevent double-injection across re-executions
+-- Uses shared_environment / getgenv if available, else _G
+-- ════════════════════════════════════════════════════════════
+local env = (getgenv and getgenv()) or _G
+if env.__ORCA_ADDON_LOADED then
+    warn("[OrcaAddons] Already loaded — skipping.")
+    return
 end
-
-local waitForOrcaGui  = helpers.waitForOrcaGui
-local waitForOrcaRoot = helpers.waitForOrcaRoot
-local waitForLayout   = helpers.waitForLayout
-local findNavbar      = helpers.findNavbar
-local computeCardX    = helpers.computeCardX
+env.__ORCA_ADDON_LOADED = true
 
 -- ════════════════════════════════════════════════════════════
 -- Services
@@ -57,11 +53,7 @@ local jobs = {
     reachextend = false,
     silentaim   = false,
 }
-
-local jobValues = {
-    killaura    = 15,   -- stud radius
-    reachextend = 20,   -- stud offset
-}
+local jobValues = { killaura = 15, reachextend = 20 }
 
 -- ════════════════════════════════════════════════════════════
 -- Workers
@@ -96,9 +88,7 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
     if not root then return end
     local ray    = Workspace.CurrentCamera:ScreenPointToRay(inp.Position.X, inp.Position.Y)
     local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000)
-    if result then
-        root.CFrame = CFrame.new(result.Position + Vector3.new(0, 3, 0))
-    end
+    if result then root.CFrame = CFrame.new(result.Position + Vector3.new(0, 3, 0)) end
 end)
 
 -- Kill Aura
@@ -114,7 +104,7 @@ task.spawn(function()
             local pc = pl.Character
             local pr = pc and pc:FindFirstChild("HumanoidRootPart")
             local ph = pc and pc:FindFirstChildWhichIsA("Humanoid")
-            if pr and ph and (pr.Position - root.Position).Magnitude <= (jobValues.killaura or 15) then
+            if pr and ph and (pr.Position - root.Position).Magnitude <= jobValues.killaura then
                 ph.Health = 0
             end
         end
@@ -146,15 +136,15 @@ RunService.RenderStepped:Connect(function()
             bb.Size        = UDim2.new(0, 4, 0, 4)
             bb.StudsOffset = Vector3.new(0, 3, 0)
             local lbl = Instance.new("TextLabel", bb)
-            lbl.Size                     = UDim2.new(1, 0, 1, 0)
-            lbl.BackgroundTransparency   = 1
-            lbl.TextColor3               = Color3.fromRGB(255, 60, 60)
-            lbl.TextStrokeTransparency   = 0
-            lbl.Font                     = Enum.Font.GothamBold
-            lbl.TextSize                 = 14
-            lbl.Text                     = pl.DisplayName
-            bb.Parent                    = pr
-            espCache[pl]                 = bb
+            lbl.Size                   = UDim2.new(1, 0, 1, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.TextColor3             = Color3.fromRGB(255, 60, 60)
+            lbl.TextStrokeTransparency = 0
+            lbl.Font                   = Enum.Font.GothamBold
+            lbl.TextSize               = 14
+            lbl.Text                   = pl.DisplayName
+            bb.Parent                  = pr
+            espCache[pl]               = bb
         else
             local lbl = espCache[pl]:FindFirstChildWhichIsA("TextLabel")
             if lbl then
@@ -176,8 +166,8 @@ task.spawn(function()
             on = true
             origAmb = Lighting.Ambient
             origOut = Lighting.OutdoorAmbient
-            Lighting.Ambient         = Color3.new(1, 1, 1)
-            Lighting.OutdoorAmbient  = Color3.new(1, 1, 1)
+            Lighting.Ambient        = Color3.new(1, 1, 1)
+            Lighting.OutdoorAmbient = Color3.new(1, 1, 1)
         elseif not jobs.fullbright and on then
             on = false
             Lighting.Ambient        = origAmb or Color3.new(0.5, 0.5, 0.5)
@@ -217,7 +207,7 @@ RunService.Stepped:Connect(function()
         local handle = tool:FindFirstChild("Handle")
         local root   = char:FindFirstChild("HumanoidRootPart")
         if handle and root then
-            handle.CFrame = root.CFrame * CFrame.new(0, 0, -(jobValues.reachextend or 20))
+            handle.CFrame = root.CFrame * CFrame.new(0, 0, -jobValues.reachextend)
         end
     end
 end)
@@ -248,389 +238,316 @@ UserInputService.InputBegan:Connect(function(inp, gpe)
 end)
 
 -- ════════════════════════════════════════════════════════════
--- Orca UI injection
--- Depends on fixes helpers for safe, deferred discovery
+-- UI HELPERS  (inlined — no _G passing needed)
 -- ════════════════════════════════════════════════════════════
 
--- Orca dark-theme colour tokens (matches jobs.reducer accent)
+-- Poll for Orca's ScreenGui (checks PlayerGui + CoreGui)
+local function waitForOrcaGui(timeout)
+    local elapsed = 0
+    while elapsed < (timeout or 20) do
+        for _, sg in ipairs(pgui:GetChildren()) do
+            if sg:IsA("ScreenGui") and sg.Name == "Orca" then return sg end
+        end
+        local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+        if ok then
+            for _, sg in ipairs(cg:GetChildren()) do
+                if sg:IsA("ScreenGui") and sg.Name == "Orca" then return sg end
+            end
+        end
+        task.wait(0.1)
+        elapsed += 0.1
+    end
+    return nil
+end
+
+-- Poll for Orca's root Frame (Roact mounts it after ScreenGui exists)
+local function waitForOrcaRoot(gui, timeout)
+    local elapsed = 0
+    while elapsed < (timeout or 10) do
+        for _, c in ipairs(gui:GetChildren()) do
+            if c:IsA("Frame") then return c end
+        end
+        task.wait(0.1)
+        elapsed += 0.1
+    end
+    return nil
+end
+
+-- Wait for a Frame to have non-zero AbsoluteSize (Roact layout pass)
+local function waitForLayout(frame, timeout)
+    local elapsed = 0
+    while elapsed < (timeout or 8) do
+        if frame.AbsoluteSize.X > 0 and frame.AbsoluteSize.Y > 0 then return true end
+        task.wait(0.05)
+        elapsed += 0.05
+    end
+    return false
+end
+
+-- Resolution-safe card X position (45% of root width)
+local function computeCardX(root)
+    waitForLayout(root, 8)
+    return math.round(root.AbsoluteSize.X * 0.45)
+end
+
+-- Find Orca's Navbar frame (Frame with ≥3 button-like children, short height)
+local function findNavbar(root)
+    waitForLayout(root, 8)
+    for _, child in ipairs(root:GetDescendants()) do
+        if child:IsA("Frame") then
+            local abs = child.AbsoluteSize
+            if abs.X > 200 and abs.Y > 30 and abs.Y < 90 then
+                local n = 0
+                for _, c in ipairs(child:GetChildren()) do
+                    if c:IsA("TextButton") or c:IsA("Frame") then n += 1 end
+                end
+                if n >= 3 then return child end
+            end
+        end
+    end
+    return nil
+end
+
+-- ════════════════════════════════════════════════════════════
+-- UI COMPONENT HELPERS
+-- ════════════════════════════════════════════════════════════
 local C = {
-    bg      = Color3.fromRGB(22,  22,  26),    -- #161620
-    bgRow   = Color3.fromRGB(27,  28,  32),    -- #1B1C20 (Orca card row bg)
+    bg      = Color3.fromRGB(22,  22,  26),
+    bgRow   = Color3.fromRGB(27,  28,  32),
     bgHover = Color3.fromRGB(40,  40,  52),
-    accent  = Color3.fromRGB(55,  204, 149),   -- #37CC95 (Orca accent)
+    bgOn    = Color3.fromRGB(28,  44,  36),
+    accent  = Color3.fromRGB(55,  204, 149),
     fg      = Color3.new(1, 1, 1),
     fg2     = Color3.fromRGB(180, 180, 195),
     stroke  = Color3.new(1, 1, 1),
     section = Color3.fromRGB(130, 130, 160),
 }
-
 local TI = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-local function tween(inst, props)
-    TweenService:Create(inst, TI, props):Play()
-end
-
+local function tw(inst, props) TweenService:Create(inst, TI, props):Play() end
 local function px(x, y) return UDim2.new(0, x, 0, y) end
+local function corner(inst, r) local c = Instance.new("UICorner", inst); c.CornerRadius = UDim.new(0, r or 8) end
+local function stroke(inst, t) local s = Instance.new("UIStroke", inst); s.Color = C.stroke; s.Transparency = t or 0.88; s.Thickness = 1 end
 
-local function addCorner(inst, r)
-    local c = Instance.new("UICorner", inst)
-    c.CornerRadius = UDim.new(0, r or 8)
+local function makeSection(parent, label, order)
+    local lbl = Instance.new("TextLabel", parent)
+    lbl.Text = label; lbl.Font = Enum.Font.GothamBlack; lbl.TextSize = 11
+    lbl.TextColor3 = C.section; lbl.BackgroundTransparency = 1
+    lbl.Size = UDim2.new(1, 0, 0, 22); lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.LayoutOrder = order; lbl.ZIndex = parent.ZIndex + 1
 end
 
-local function addStroke(inst, col, t)
-    local s = Instance.new("UIStroke", inst)
-    s.Color        = col or C.stroke
-    s.Transparency = t  or 0.88
-    s.Thickness    = 1
+local function makeToggle(parent, jobKey, label, hint, order)
+    local ROW_H = hint and 48 or 44
+
+    local row = Instance.new("Frame", parent)
+    row.Name = "Toggle_"..jobKey; row.Size = UDim2.new(1, 0, 0, ROW_H)
+    row.BackgroundColor3 = C.bgRow; row.BorderSizePixel = 0
+    row.LayoutOrder = order; row.ZIndex = parent.ZIndex + 1
+    corner(row, 8)
+
+    local nameLbl = Instance.new("TextLabel", row)
+    nameLbl.Text = label; nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 14
+    nameLbl.TextColor3 = C.fg; nameLbl.BackgroundTransparency = 1
+    nameLbl.Size = UDim2.new(1, -54, 0, 20); nameLbl.Position = px(12, hint and 8 or 12)
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.ZIndex = row.ZIndex + 1
+
+    if hint then
+        local h = Instance.new("TextLabel", row)
+        h.Text = hint; h.Font = Enum.Font.Gotham; h.TextSize = 10
+        h.TextColor3 = C.fg2; h.BackgroundTransparency = 1
+        h.Size = UDim2.new(1, -54, 0, 14); h.Position = px(12, 26)
+        h.TextXAlignment = Enum.TextXAlignment.Left; h.ZIndex = row.ZIndex + 1
+    end
+
+    local pill = Instance.new("Frame", row)
+    pill.Size = px(36, 20); pill.Position = UDim2.new(1, -46, 0.5, -10)
+    pill.BackgroundColor3 = Color3.fromRGB(55, 55, 68); pill.BorderSizePixel = 0
+    pill.ZIndex = row.ZIndex + 1; corner(pill, 10)
+
+    local knob = Instance.new("Frame", pill)
+    knob.Size = px(16, 16); knob.Position = px(2, 2)
+    knob.BackgroundColor3 = C.fg; knob.BorderSizePixel = 0
+    knob.ZIndex = pill.ZIndex + 1; corner(knob, 8)
+
+    local btn = Instance.new("TextButton", row)
+    btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1
+    btn.Text = ""; btn.ZIndex = row.ZIndex + 5
+
+    local function refresh()
+        local on = jobs[jobKey]
+        tw(pill,    { BackgroundColor3 = on and C.accent or Color3.fromRGB(55, 55, 68) })
+        tw(knob,    { Position = on and px(18, 2) or px(2, 2) })
+        tw(nameLbl, { TextColor3 = on and C.accent or C.fg })
+        tw(row,     { BackgroundColor3 = on and C.bgOn or C.bgRow })
+    end
+
+    btn.MouseEnter:Connect(function()
+        if not jobs[jobKey] then tw(row, { BackgroundColor3 = C.bgHover }) end
+    end)
+    btn.MouseLeave:Connect(function()
+        if not jobs[jobKey] then tw(row, { BackgroundColor3 = C.bgRow }) end
+    end)
+    btn.Activated:Connect(function()
+        jobs[jobKey] = not jobs[jobKey]
+        refresh()
+    end)
 end
 
--- ────────────────────────────────────────────────────────────
--- Build addon card UI
--- cardX  = computed X offset (FIX-5 resolution-safe)
--- root   = Orca's root Frame
--- ────────────────────────────────────────────────────────────
-local function buildCard(root, cardX)
+-- ════════════════════════════════════════════════════════════
+-- MAIN UI INJECTION
+-- Runs in a task.spawn so workers start immediately while
+-- we wait for Orca to finish mounting its Roact tree
+-- ════════════════════════════════════════════════════════════
+task.spawn(function()
+
+    -- 1. Wait for Orca's ScreenGui (up to 25s — Orca loads after us)
+    local gui = waitForOrcaGui(25)
+    if not gui then
+        warn("[OrcaAddons] Orca ScreenGui not found within 25s. UI not injected.")
+        return
+    end
+
+    -- 2. Wait for Orca's root Frame (Roact render pass)
+    local root = waitForOrcaRoot(gui, 10)
+    if not root then
+        warn("[OrcaAddons] Orca root Frame not found within 10s. UI not injected.")
+        return
+    end
+
+    -- 3. Wait for Roact layout pass (AbsoluteSize becomes non-zero)
+    waitForLayout(root, 8)
+
+    -- 4. Build Card
+    local cardX = computeCardX(root)
+
     local card = Instance.new("Frame")
     card.Name                   = "_OrcaAddonCard"
     card.Size                   = px(326, 648)
-    -- Start off-screen to the left, slide in on open
-    card.Position               = UDim2.new(0, cardX - 250, 1, 0)
+    card.Position               = UDim2.new(0, cardX - 280, 1, 0)  -- off-screen start
     card.AnchorPoint            = Vector2.new(0, 1)
     card.BackgroundColor3       = C.bg
     card.BackgroundTransparency = 0
     card.BorderSizePixel        = 0
     card.Visible                = false
     card.ZIndex                 = 6
-    addCorner(card, 16)
-    addStroke(card)
+    corner(card, 16); stroke(card)
 
-    -- Drop shadow (approximates Orca's Glow component)
     local shadow = Instance.new("Frame", card)
-    shadow.Name                   = "Shadow"
-    shadow.Size                   = UDim2.new(1, 24, 1, 24)
-    shadow.Position               = px(-12, -12)
-    shadow.BackgroundColor3       = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 0.65
-    shadow.BorderSizePixel        = 0
-    shadow.ZIndex                 = card.ZIndex - 1
-    addCorner(shadow, 20)
+    shadow.Size = UDim2.new(1, 24, 1, 24); shadow.Position = px(-12, -12)
+    shadow.BackgroundColor3 = Color3.new(0,0,0); shadow.BackgroundTransparency = 0.65
+    shadow.BorderSizePixel = 0; shadow.ZIndex = card.ZIndex - 1; corner(shadow, 20)
 
-    -- Title label (matches Orca TextLabel pattern: GothamBlack 20px)
     local title = Instance.new("TextLabel", card)
-    title.Text               = "Addons"
-    title.Font               = Enum.Font.GothamBlack
-    title.TextSize           = 20
-    title.TextColor3         = C.fg
-    title.TextXAlignment     = Enum.TextXAlignment.Left
-    title.TextYAlignment     = Enum.TextYAlignment.Top
-    title.BackgroundTransparency = 1
-    title.Size               = px(278, 30)
-    title.Position           = px(24, 24)
-    title.ZIndex             = card.ZIndex + 1
+    title.Text = "Addons"; title.Font = Enum.Font.GothamBlack; title.TextSize = 20
+    title.TextColor3 = C.fg; title.TextXAlignment = Enum.TextXAlignment.Left
+    title.BackgroundTransparency = 1; title.Size = px(278, 30)
+    title.Position = px(24, 24); title.ZIndex = card.ZIndex + 1
 
-    -- ScrollingFrame for toggle rows
     local scroll = Instance.new("ScrollingFrame", card)
-    scroll.Name                    = "Scroll"
-    scroll.Size                    = UDim2.new(1, 0, 1, -68)
-    scroll.Position                = px(0, 68)
-    scroll.BackgroundTransparency  = 1
-    scroll.BorderSizePixel         = 0
-    scroll.ScrollBarThickness      = 3
-    scroll.ScrollBarImageColor3    = C.fg
-    scroll.ScrollBarImageTransparency = 0.7
-    scroll.CanvasSize              = px(0, 0)
-    scroll.ClipsDescendants        = true
-    scroll.ZIndex                  = card.ZIndex + 1
+    scroll.Name = "Scroll"; scroll.Size = UDim2.new(1, 0, 1, -68)
+    scroll.Position = px(0, 68); scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0; scroll.ScrollBarThickness = 3
+    scroll.ScrollBarImageColor3 = C.fg; scroll.ScrollBarImageTransparency = 0.7
+    scroll.CanvasSize = px(0, 0); scroll.ClipsDescendants = true
+    scroll.ZIndex = card.ZIndex + 1
 
     local list = Instance.new("UIListLayout", scroll)
-    list.Padding       = UDim.new(0, 4)
-    list.SortOrder     = Enum.SortOrder.LayoutOrder
+    list.Padding = UDim.new(0, 4); list.SortOrder = Enum.SortOrder.LayoutOrder
     list.FillDirection = Enum.FillDirection.Vertical
 
     local pad = Instance.new("UIPadding", scroll)
-    pad.PaddingLeft   = UDim.new(0, 24)
-    pad.PaddingRight  = UDim.new(0, 24)
-    pad.PaddingTop    = UDim.new(0, 8)
-    pad.PaddingBottom = UDim.new(0, 8)
+    pad.PaddingLeft = UDim.new(0, 24); pad.PaddingRight = UDim.new(0, 24)
+    pad.PaddingTop = UDim.new(0, 8); pad.PaddingBottom = UDim.new(0, 8)
 
-    -- Auto-size scroll canvas as rows are added
     list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         scroll.CanvasSize = px(0, list.AbsoluteContentSize.Y + 16)
     end)
 
-    return card, scroll
-end
+    -- 5. Populate rows
+    local o = 0
+    o+=1; makeSection(scroll, "─── CHARACTER", o)
+    o+=1; makeToggle(scroll, "noclip",      "NoClip",         "Walk through walls",              o)
+    o+=1; makeToggle(scroll, "infjump",     "Infinite Jump",  "Jump again mid-air",              o)
+    o+=1; makeToggle(scroll, "clicktp",     "Click Teleport", "Left-click to teleport",          o)
+    o+=1; makeToggle(scroll, "spinbot",     "Spin Bot",       "Rotate character continuously",   o)
+    o+=1; makeSection(scroll, "─── COMBAT", o)
+    o+=1; makeToggle(scroll, "killaura",    "Kill Aura",      "Kills enemies within "..jobValues.killaura.."st",   o)
+    o+=1; makeToggle(scroll, "silentaim",   "Silent Aim",     "Snap camera to nearest player",   o)
+    o+=1; makeToggle(scroll, "reachextend", "Reach Extend",   "Extends tool reach "..jobValues.reachextend.."st", o)
+    o+=1; makeSection(scroll, "─── VISUAL", o)
+    o+=1; makeToggle(scroll, "esp",         "ESP Names",      "Names + distance over players",   o)
+    o+=1; makeToggle(scroll, "fullbright",  "Fullbright",     "Max ambient lighting",            o)
+    o+=1; makeSection(scroll, "─── MISC", o)
+    o+=1; makeToggle(scroll, "antiafk",     "Anti-AFK",       "Prevents idle kick",              o)
 
--- ────────────────────────────────────────────────────────────
--- Build a section header row
--- ────────────────────────────────────────────────────────────
-local function makeSection(parent, label, order)
-    local lbl = Instance.new("TextLabel", parent)
-    lbl.Text             = label
-    lbl.Font             = Enum.Font.GothamBlack
-    lbl.TextSize         = 11
-    lbl.TextColor3       = C.section
-    lbl.BackgroundTransparency = 1
-    lbl.Size             = UDim2.new(1, 0, 0, 22)
-    lbl.TextXAlignment   = Enum.TextXAlignment.Left
-    lbl.LayoutOrder      = order
-    lbl.ZIndex           = parent.ZIndex + 1
-    return lbl
-end
-
--- ────────────────────────────────────────────────────────────
--- Build a toggle row (pill switch matching Orca BrightButton)
--- Returns the row Frame
--- ────────────────────────────────────────────────────────────
-local function makeToggle(parent, jobKey, label, hint, order)
-    local ROW_H = hint and 48 or 44
-
-    local row = Instance.new("Frame", parent)
-    row.Name              = "Toggle_" .. jobKey
-    row.Size              = UDim2.new(1, 0, 0, ROW_H)
-    row.BackgroundColor3  = C.bgRow
-    row.BorderSizePixel   = 0
-    row.LayoutOrder       = order
-    row.ZIndex            = parent.ZIndex + 1
-    addCorner(row, 8)
-
-    -- Main label (GothamBold 14px — matches Orca ConfigItem)
-    local nameLbl = Instance.new("TextLabel", row)
-    nameLbl.Text             = label
-    nameLbl.Font             = Enum.Font.GothamBold
-    nameLbl.TextSize         = 14
-    nameLbl.TextColor3       = C.fg
-    nameLbl.BackgroundTransparency = 1
-    nameLbl.Size             = UDim2.new(1, -54, 0, 20)
-    nameLbl.Position         = px(12, hint and 8 or 12)
-    nameLbl.TextXAlignment   = Enum.TextXAlignment.Left
-    nameLbl.ZIndex           = row.ZIndex + 1
-
-    -- Subtitle hint (Gotham 10px — matches Orca hover hint style)
-    if hint then
-        local hintLbl = Instance.new("TextLabel", row)
-        hintLbl.Text              = hint
-        hintLbl.Font              = Enum.Font.Gotham
-        hintLbl.TextSize          = 10
-        hintLbl.TextColor3        = C.fg2
-        hintLbl.BackgroundTransparency = 1
-        hintLbl.Size              = UDim2.new(1, -54, 0, 14)
-        hintLbl.Position          = px(12, 26)
-        hintLbl.TextXAlignment    = Enum.TextXAlignment.Left
-        hintLbl.ZIndex            = row.ZIndex + 1
-    end
-
-    -- Pill track (inactive = dark grey, active = #37CC95)
-    local pill = Instance.new("Frame", row)
-    pill.Size            = px(36, 20)
-    pill.Position        = UDim2.new(1, -46, 0.5, -10)
-    pill.BackgroundColor3 = Color3.fromRGB(55, 55, 68)
-    pill.BorderSizePixel = 0
-    pill.ZIndex          = row.ZIndex + 1
-    addCorner(pill, 10)
-
-    -- Knob
-    local knob = Instance.new("Frame", pill)
-    knob.Size            = px(16, 16)
-    knob.Position        = px(2, 2)
-    knob.BackgroundColor3 = C.fg
-    knob.BorderSizePixel = 0
-    knob.ZIndex          = pill.ZIndex + 1
-    addCorner(knob, 8)
-
-    -- Invisible hit area (full row)
-    local btn = Instance.new("TextButton", row)
-    btn.Size                 = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text                 = ""
-    btn.ZIndex               = row.ZIndex + 5
-
-    local function refresh()
-        local on = jobs[jobKey]
-        tween(pill,    { BackgroundColor3 = on and C.accent or Color3.fromRGB(55, 55, 68) })
-        tween(knob,    { Position = on and px(18, 2) or px(2, 2) })
-        tween(nameLbl, { TextColor3 = on and C.accent or C.fg })
-    end
-
-    btn.MouseEnter:Connect(function()
-        if not jobs[jobKey] then tween(row, { BackgroundColor3 = C.bgHover }) end
-    end)
-    btn.MouseLeave:Connect(function()
-        if not jobs[jobKey] then tween(row, { BackgroundColor3 = C.bgRow }) end
-    end)
-    btn.Activated:Connect(function()
-        jobs[jobKey] = not jobs[jobKey]
-        tween(row, {
-            BackgroundColor3 = jobs[jobKey]
-                and Color3.fromRGB(28, 44, 36)
-                or  C.bgRow
-        })
-        refresh()
-    end)
-
-    return row
-end
-
--- ────────────────────────────────────────────────────────────
--- Build tab button (mirrors Orca NavbarTab: 100×56, icon+label)
--- ────────────────────────────────────────────────────────────
-local function buildTabButton(onToggle)
-    local tab = Instance.new("Frame")
-    tab.Name             = "_AddonTab"
-    tab.Size             = px(100, 56)
-    tab.BackgroundTransparency = 1
-    tab.ZIndex           = 10
-
-    -- Icon (wrench asset — from Orca's rbxassetid list)
-    local icon = Instance.new("ImageLabel", tab)
-    icon.Image               = "rbxassetid://8992259774"
-    icon.ImageColor3         = Color3.new(1, 1, 1)
-    icon.ImageTransparency   = 0.6
-    icon.Size                = px(36, 36)
-    icon.Position            = UDim2.new(0.5, -18, 0, 4)
-    icon.BackgroundTransparency = 1
-    icon.ZIndex              = tab.ZIndex + 1
-
-    -- Label (GothamBold 9px — matches Orca NavbarTab labels)
-    local lbl = Instance.new("TextLabel", tab)
-    lbl.Text              = "Addons"
-    lbl.Font              = Enum.Font.GothamBold
-    lbl.TextSize          = 9
-    lbl.TextColor3        = Color3.new(1, 1, 1)
-    lbl.TextTransparency  = 0.6
-    lbl.BackgroundTransparency = 1
-    lbl.Size              = UDim2.new(1, 0, 0, 12)
-    lbl.Position          = UDim2.new(0, 0, 1, -14)
-    lbl.TextXAlignment    = Enum.TextXAlignment.Center
-    lbl.ZIndex            = tab.ZIndex + 1
-
-    -- Hit area
-    local btn = Instance.new("TextButton", tab)
-    btn.Size             = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text             = ""
-    btn.ZIndex           = tab.ZIndex + 5
-    btn.Activated:Connect(onToggle)
-
-    return tab, icon, lbl
-end
-
--- ────────────────────────────────────────────────────────────
--- Main injection — runs after Orca is fully mounted
--- ────────────────────────────────────────────────────────────
-task.spawn(function()
-    -- [FIX-1] Wait for Orca's ScreenGui (up to 20s)
-    local gui = waitForOrcaGui(20)
-    if not gui then
-        warn("[OrcaAddons] Orca ScreenGui not found within 20s — aborting injection.")
-        return
-    end
-
-    -- [FIX-4] Wait for Orca's root Frame
-    local root = waitForOrcaRoot(gui, 10)
-    if not root then
-        warn("[OrcaAddons] Orca root Frame not found within 10s — aborting injection.")
-        return
-    end
-
-    -- [FIX-2] Wait for Roact layout pass to complete
-    local ok = waitForLayout(root, 8)
-    if not ok then
-        warn("[OrcaAddons] Root AbsoluteSize never became non-zero — layout may be broken.")
-    end
-
-    -- [FIX-5] Resolution-safe card X position
-    local cardX = computeCardX(root)
-
-    -- Build card with scroll area
-    local card, scroll = buildCard(root, cardX)
-
-    -- Populate toggle rows
-    local order = 0
-
-    order += 1; makeSection(scroll, "─── CHARACTER", order)
-    order += 1; makeToggle(scroll, "noclip",      "NoClip",         "Walk through walls",             order)
-    order += 1; makeToggle(scroll, "infjump",     "Infinite Jump",  "Jump again mid-air",             order)
-    order += 1; makeToggle(scroll, "clicktp",     "Click Teleport", "Left-click to teleport",         order)
-    order += 1; makeToggle(scroll, "spinbot",     "Spin Bot",       "Rotate character continuously",  order)
-
-    order += 1; makeSection(scroll, "─── COMBAT", order)
-    order += 1; makeToggle(scroll, "killaura",    "Kill Aura",      "Kills enemies within "..jobValues.killaura.."st",  order)
-    order += 1; makeToggle(scroll, "silentaim",   "Silent Aim",     "Snaps camera to nearest player", order)
-    order += 1; makeToggle(scroll, "reachextend", "Reach Extend",   "Extends tool reach "..jobValues.reachextend.."st", order)
-
-    order += 1; makeSection(scroll, "─── VISUAL", order)
-    order += 1; makeToggle(scroll, "esp",         "ESP Names",      "Name + distance over players",   order)
-    order += 1; makeToggle(scroll, "fullbright",  "Fullbright",     "Max ambient lighting",           order)
-
-    order += 1; makeSection(scroll, "─── MISC", order)
-    order += 1; makeToggle(scroll, "antiafk",     "Anti-AFK",       "Prevents idle kick",             order)
-
-    -- Parent card into Orca's root now
     card.Parent = root
 
-    -- Track open state
+    -- 6. Tab button
     local isOpen = false
+
+    local tab = Instance.new("Frame")
+    tab.Name = "_AddonTab"; tab.Size = px(100, 56)
+    tab.BackgroundTransparency = 1; tab.ZIndex = 10
+
+    local icon = Instance.new("ImageLabel", tab)
+    icon.Image = "rbxassetid://8992259774"; icon.ImageColor3 = Color3.new(1,1,1)
+    icon.ImageTransparency = 0.6; icon.Size = px(36, 36)
+    icon.Position = UDim2.new(0.5, -18, 0, 4); icon.BackgroundTransparency = 1
+    icon.ZIndex = tab.ZIndex + 1
+
+    local tabLbl = Instance.new("TextLabel", tab)
+    tabLbl.Text = "Addons"; tabLbl.Font = Enum.Font.GothamBold; tabLbl.TextSize = 9
+    tabLbl.TextColor3 = Color3.new(1,1,1); tabLbl.TextTransparency = 0.6
+    tabLbl.BackgroundTransparency = 1; tabLbl.Size = UDim2.new(1,0,0,12)
+    tabLbl.Position = UDim2.new(0,0,1,-14); tabLbl.TextXAlignment = Enum.TextXAlignment.Center
+    tabLbl.ZIndex = tab.ZIndex + 1
+
+    local tabBtn = Instance.new("TextButton", tab)
+    tabBtn.Size = UDim2.new(1,0,1,0); tabBtn.BackgroundTransparency = 1
+    tabBtn.Text = ""; tabBtn.ZIndex = tab.ZIndex + 5
 
     local function setOpen(v)
         isOpen = v
+        tw(icon,   { ImageTransparency = v and 0 or 0.6,
+                     ImageColor3       = v and C.accent or Color3.new(1,1,1) })
+        tw(tabLbl, { TextTransparency  = v and 0 or 0.6,
+                     TextColor3        = v and C.accent or Color3.new(1,1,1) })
         if v then
-            card.Visible  = true
-            -- Slide in from left (matches Orca Card spring animation)
-            tween(card, { Position = UDim2.new(0, cardX, 1, 0) })
+            card.Visible = true
+            tw(card, { Position = UDim2.new(0, cardX, 1, 0) })
         else
-            tween(card, { Position = UDim2.new(0, cardX - 280, 1, 0) })
+            tw(card, { Position = UDim2.new(0, cardX - 280, 1, 0) })
             task.delay(0.22, function()
                 if not isOpen then card.Visible = false end
             end)
         end
     end
 
-    -- Build tab button
-    local tab, tabIcon, tabLabel = buildTabButton(function()
-        setOpen(not isOpen)
-        tween(tabIcon,  { ImageTransparency = isOpen and 0 or 0.6,
-                          ImageColor3       = isOpen and C.accent or Color3.new(1, 1, 1) })
-        tween(tabLabel, { TextTransparency  = isOpen and 0 or 0.6,
-                          TextColor3        = isOpen and C.accent or Color3.new(1, 1, 1) })
-    end)
+    tabBtn.Activated:Connect(function() setOpen(not isOpen) end)
 
-    -- Find and attach to Orca's Navbar
-    -- [FIX-2] Navbar discovery waits for non-zero layout
+    -- 7. Attach tab to Navbar or floating fallback
     local navbar = findNavbar(root)
     if navbar then
         tab.Position = UDim2.new(1, 4, 0, 0)
         tab.Parent   = navbar
-        -- Widen navbar frame to prevent clipping
         if navbar.Size.X.Offset > 0 then
             navbar.Size = px(navbar.Size.X.Offset + 100, navbar.Size.Y.Offset)
         end
     else
-        -- Fallback: floating button anchored to bottom of root
-        local floatFrame = Instance.new("Frame", root)
-        floatFrame.Name             = "_AddonFloatBar"
-        floatFrame.Size             = px(100, 56)
-        floatFrame.Position         = UDim2.new(0, cardX, 1, -56)
-        floatFrame.BackgroundColor3 = C.bg
-        floatFrame.BorderSizePixel  = 0
-        floatFrame.ZIndex           = 9
-        addCorner(floatFrame, 8)
-        addStroke(floatFrame)
+        local floatBar = Instance.new("Frame", root)
+        floatBar.Name = "_AddonFloatBar"; floatBar.Size = px(100, 56)
+        floatBar.Position = UDim2.new(0, cardX, 1, -56)
+        floatBar.BackgroundColor3 = C.bg; floatBar.BorderSizePixel = 0
+        floatBar.ZIndex = 9; corner(floatBar, 8); stroke(floatBar)
         tab.Position = px(0, 0)
-        tab.Parent   = floatFrame
+        tab.Parent   = floatBar
     end
 
-    -- [J] hotkey toggle
+    -- 8. [J] hotkey
     UserInputService.InputBegan:Connect(function(inp, gpe)
         if gpe then return end
-        if inp.KeyCode == Enum.KeyCode.J then
-            setOpen(not isOpen)
-            tween(tabIcon,  { ImageTransparency = isOpen and 0 or 0.6,
-                              ImageColor3       = isOpen and C.accent or Color3.new(1, 1, 1) })
-            tween(tabLabel, { TextTransparency  = isOpen and 0 or 0.6,
-                              TextColor3        = isOpen and C.accent or Color3.new(1, 1, 1) })
-        end
+        if inp.KeyCode == Enum.KeyCode.J then setOpen(not isOpen) end
     end)
 
-    print("[OrcaAddons] Injected successfully! Press J or click the Addons tab to open.")
+    print("[OrcaAddons] Injected! Press J or click Addons tab to open.")
 end)
